@@ -4,7 +4,7 @@
 
 //Configure the MPU_6050
 IMU::IMU(){
-  Serial.println("Starting transmission with MPU");
+  Wire.begin();
   delay(200);
   Wire.beginTransmission(0x68);       //Start communicating with the MPU-6050
   Wire.write(0x6B);                   //Select register 0x6B

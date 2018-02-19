@@ -11,9 +11,9 @@ pid::pid(double kp, double ki, double kd){
 double pid::calculateOutput(unsigned long currentTime, double position, double setpoint){
     int deltaT = currentTime - lastTime;
     
-    double error = setpoint - position;
-    integral += error * deltaT;
-    double derivative = (position - lastPosition)/(float)deltaT;
+    double error = setpoint - (position * 16.667); // multiply position (in degrees) by a constant to get approximately microsecond-sized units
+    integral += error * deltaT; // integrate the error 
+    double derivative = (position - lastPosition)/(float)deltaT; // take the derivative of the error
     
     lastPosition = position;
     lastTime = currentTime;
