@@ -13,14 +13,26 @@ double pid::calculateOutput(unsigned long currentTime, double position, double s
     
     double error = setpoint - (position * 16.667); // multiply position (in degrees) by a constant to get approximately microsecond-sized units
     integral += error * deltaT; // integrate the error 
+    integral = limit(integral, -20.0, 20.0);
     double derivative = (position - lastPosition)/(float)deltaT; // take the derivative of the error
     
     lastPosition = position;
     lastTime = currentTime;
+
+    
     return error*KP + integral*KI + derivative*KD;
 }
-
+double pid::limit(double num, double lowerbound, double upperbound){
+  if(num < lowerbound){
+    return lowerbound;
+  }
+  if(num > upperbound){
+    return upperbound;
+  }
+  return num;
+}
 /*
+ * 
  * void calculate_pid(){
 
   int dt = micros() - timeOfLastPID;

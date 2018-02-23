@@ -12,6 +12,7 @@ class pid{
         double integral;
         double lastPosition;
         unsigned long lastTime;
+        double limit(double input, double lowerbound, double upperbound);
 };
 #endif
 
