@@ -16,7 +16,7 @@ IMU *mpu;
 RC *rc;
 
 void setup() {
-  Serial.begin(250000);
+  Serial.begin(9600);
   log("\n\n");
   log("init HEX_FCv2.0");
   
@@ -44,7 +44,7 @@ void setup() {
   log("Initializing IMU.");
   
   mpu = new IMU();
-  mpu->calibrate(2000);
+  mpu->calibrate(3000);
 
   log("Waiting for connection to RC controller.");
   
@@ -73,7 +73,9 @@ void setup() {
 }
 
 void loop(){
+    unsigned long start_t = micros();
     //Get values from IMU
+    unsigned long current_t = micros();
     mpu->update();
     float pitchEstimate = mpu->getPitch();
     float rollEstimate = mpu->getRoll();
@@ -84,30 +86,24 @@ void loop(){
     float setpointRoll = rc->getRollSetpoint();
     float setpointYaw = rc->getYawSetpoint();
     int throttle = rc->getThrottle();
-
     //If we lose connection with the remote control this loop, increment this timeout timer.
     if(!rc->connected()) timeout++;
     else timeout = 0;
-    
-    if(throttle > 1040 || timeout < 10){
-      //Calculate PID outputs and constrain them between -400 and 400 in case we get ridiculous values
-      unsigned long current_time = micros();
-      float outputPitch = constrain(pitchPID->calculateOutput(current_time, pitchEstimate, setpointPitch), -MAX_PID_OUT, MAX_PID_OUT);
-      float outputRoll = constrain(rollPID->calculateOutput(current_time, rollEstimate, setpointRoll), -MAX_PID_OUT, MAX_PID_OUT);
-      float outputYaw = constrain(yawPID->calculateOutput(current_time, yawEstimate, setpointYaw), -MAX_PID_OUT, MAX_PID_OUT); 
-      
-      //Wait until 5ms have passed since the last loop to maintain a stable iteration time
-      while(zero_timer + 5000 > micros()){}
-  
+    Serial.println(micros()-current_t);
+    if(throttle > 1040 && timeout < 10){
       zero_timer = micros(); //Reset the zero timer
       PORTD |= B11111100; //Set ports 2-7 to high to start PWM pulse
+      //Calculate PID outputs and constrain them between -400 and 400 in case we get ridiculous values
+      float outputPitch = pitchPID->calculateOutput(zero_timer, pitchEstimate, setpointPitch);
+      float outputRoll = rollPID->calculateOutput(zero_timer, rollEstimate, setpointRoll);
+      float outputYaw = yawPID->calculateOutput(zero_timer, yawEstimate, setpointYaw); 
        
-      unsigned long esc1 = zero_timer + throttle + outputPitch - outputRoll + outputYaw; // Front left (2)
-      unsigned long esc2 = zero_timer + throttle               - outputRoll - outputYaw; // Left (3)
-      unsigned long esc3 = zero_timer + throttle - outputPitch - outputRoll + outputYaw; // Back Left (4)
-      unsigned long esc4 = zero_timer + throttle - outputPitch + outputRoll - outputYaw; // Back Right (5)
-      unsigned long esc5 = zero_timer + throttle               + outputRoll + outputYaw; // Right (6)
-      unsigned long esc6 = zero_timer + throttle + outputPitch + outputRoll - outputYaw; // Front Right (7)
+      unsigned long esc1 = zero_timer + throttle;// + outputPitch - outputRoll + outputYaw; // Front left (2)
+      unsigned long esc2 = zero_timer + throttle;//               - outputRoll - outputYaw; // Left (3)
+      unsigned long esc3 = zero_timer + throttle;// - outputPitch - outputRoll + outputYaw; // Back Left (4)
+      unsigned long esc4 = zero_timer + throttle;// - outputPitch + outputRoll - outputYaw; // Back Right (5)
+      unsigned long esc5 = zero_timer + throttle;//               + outputRoll + outputYaw; // Right (6)
+      unsigned long esc6 = zero_timer + throttle;// + outputPitch + outputRoll - outputYaw; // Front Right (7)
       
       while(PORTD >= 4){
         unsigned long esc_loop_timer = micros();
@@ -118,11 +114,13 @@ void loop(){
         if(esc5 <= esc_loop_timer) PORTD &= B10111111; //If the current time is greater than the time we want esc5 to be high for, turn port 6 off.
         if(esc6 <= esc_loop_timer) PORTD &= B01111111; //If the current time is greater than the time we want esc6 to be high for, turn port 7 off.
         if(micros() - zero_timer > 2000) PORTD &= B00000011; //If for some ungodly reason it's been more than 2ms and any ports are still on, turn everything off.
-      }
+      }      
+      //Wait until 5ms have passed since the last loop to maintain a stable iteration time
     }else{ 
       if(timeout > 10) EMERGENCY_ABORT(); //RC receiver has not been getting signal for too long, so we need to abort immediately.
       if(throttle < 1040) MOTOR_SHUTDOWN(); //Throttle is below threshold, so we need to make sure motors don't start spinning unexpectedly.
     }    
+    while(start_t + 4000 > micros()){}
 }
 
 void WAIT_FOR_INPUT(){
